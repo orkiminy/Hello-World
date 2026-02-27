@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/utils/supabase-browser'
 import { useRouter } from 'next/navigation'
 
@@ -24,6 +24,12 @@ export default function ProtectedPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [votingId, setVotingId] = useState<string | null>(null)
+
+  // Upload state
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   useEffect(() => {
     async function checkUserAndFetchData() {
@@ -54,16 +60,14 @@ export default function ProtectedPage() {
       }
 
       try {
-        // Fetch 200 captions from a random start point
-        // This gives us enough to filter down to 30 unique images
-        const randomStart = Math.floor(Math.random() * 300)
+        const randomStart = Math.floor(Math.random() * 100)
 
         const { data: captionsData, error: captionsError } = await supabase
           .from('captions')
           .select('id, image_id, content, images(id, url, image_description)')
           .eq('is_public', true)
           .not('image_id', 'is', null)
-          .range(randomStart, randomStart + 199)
+          .range(randomStart, randomStart + 499)
 
         if (captionsError) throw new Error(captionsError.message)
 
@@ -74,17 +78,19 @@ export default function ProtectedPage() {
           .select('caption_id, profile_id, vote_value')
           .in('caption_id', captionIds)
 
-        // Keep only one caption per unique image, up to 30
-        const seenImages = new Set()
+        const imageCount = new Map<string, number>()
         const combined: Post[] = []
 
         for (const c of (captionsData || [])) {
           if (combined.length >= 30) break
 
           const img = c.images as any
-          if (!img || !img.url || seenImages.has(img.id)) continue
+          if (!img || !img.url) continue
 
-          seenImages.add(img.id)
+          const count = imageCount.get(img.id) || 0
+          if (count >= 2) continue
+
+          imageCount.set(img.id, count + 1)
 
           const captionVotes = (votesData || []).filter((v) => v.caption_id === c.id)
           const upvotes = captionVotes.filter((v) => v.vote_value === 1).length
@@ -103,7 +109,9 @@ export default function ProtectedPage() {
           })
         }
 
-        setPosts(combined)
+        // Shuffle randomly
+        const shuffled = [...combined].sort(() => Math.random() - 0.5)
+        setPosts(shuffled)
       } catch (err: any) {
         setError(err.message || 'Error fetching data')
       } finally {
@@ -113,6 +121,96 @@ export default function ProtectedPage() {
 
     checkUserAndFetchData()
   }, [])
+
+  const handleUpload = async (file: File) => {
+    setUploading(true)
+    setUploadError(null)
+    setUploadStatus('Getting upload URL...')
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      if (!token) throw new Error('Not authenticated')
+
+      const BASE_URL = 'https://api.almostcrackd.ai'
+
+      // Step 1: Generate presigned URL
+      const presignRes = await fetch(`${BASE_URL}/pipeline/generate-presigned-url`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ contentType: file.type }),
+      })
+      if (!presignRes.ok) throw new Error(`Presign failed: ${presignRes.statusText}`)
+      const { presignedUrl, cdnUrl } = await presignRes.json()
+
+      // Step 2: Upload image bytes
+      setUploadStatus('Uploading image...')
+      const uploadRes = await fetch(presignedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type },
+        body: file,
+      })
+      if (!uploadRes.ok) throw new Error(`Upload failed: ${uploadRes.statusText}`)
+
+      // Step 3: Register image
+      setUploadStatus('Registering image...')
+      const registerRes = await fetch(`${BASE_URL}/pipeline/upload-image-from-url`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ imageUrl: cdnUrl, isCommonUse: false }),
+      })
+      if (!registerRes.ok) throw new Error(`Register failed: ${registerRes.statusText}`)
+      const { imageId } = await registerRes.json()
+
+      // Step 4: Generate captions
+      setUploadStatus('Generating captions... (this may take a moment)')
+      const captionRes = await fetch(`${BASE_URL}/pipeline/generate-captions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ imageId }),
+      })
+      if (!captionRes.ok) throw new Error(`Caption generation failed: ${captionRes.statusText}`)
+      const captions = await captionRes.json()
+
+      const newPosts: Post[] = (captions || []).slice(0, 1).map((c: any) => ({
+        imageId: imageId,
+        url: cdnUrl,
+        image_description: null,
+        captionId: c.id,
+        content: c.content,
+        upvotes: 0,
+        downvotes: 0,
+        userVote: null,
+      }))
+
+      if (newPosts.length === 0) throw new Error('No captions were generated.')
+
+      setPosts((prev) => [...newPosts, ...prev.slice(current)])
+      setCurrent(0)
+      setUploadStatus(null)
+    } catch (err: any) {
+      console.error('Upload error:', err)
+      setUploadError(err.message || 'Upload failed')
+      setUploadStatus(null)
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) handleUpload(file)
+  }
 
   const handleVote = async (captionId: string, voteValue: 1 | -1) => {
     if (!user) return
@@ -179,6 +277,20 @@ export default function ProtectedPage() {
       <div className="sticky top-0 z-10 bg-white border-b px-6 py-4 flex justify-between items-center">
         <h1 className="text-xl font-bold">Image Gallery</h1>
         <div className="flex items-center gap-4">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,image/heic"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="bg-orange-400 text-white px-4 py-2 rounded hover:bg-orange-500 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {uploading ? '⏳ Uploading...' : '📸 Upload Image'}
+          </button>
           <p className="text-sm text-gray-600">{user?.email}</p>
           <button
             onClick={handleSignOut}
@@ -189,33 +301,54 @@ export default function ProtectedPage() {
         </div>
       </div>
 
+      {/* Upload status banner */}
+      {uploadStatus && (
+        <div className="max-w-lg mx-auto mt-4 px-4">
+          <div className="bg-orange-50 border border-orange-200 text-orange-700 rounded-xl px-4 py-3 text-sm text-center">
+            ⏳ {uploadStatus}
+          </div>
+        </div>
+      )}
+
+      {/* Upload error banner */}
+      {uploadError && (
+        <div className="max-w-lg mx-auto mt-4 px-4">
+          <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl px-4 py-3 text-sm text-center flex justify-between items-center">
+            <span>❌ {uploadError}</span>
+            <button onClick={() => setUploadError(null)} className="ml-4 text-red-400 hover:text-red-600">✕</button>
+          </div>
+        </div>
+      )}
+
       {/* Card */}
       <div className="max-w-lg mx-auto pt-6 px-4">
         {done ? (
           <div className="bg-white rounded-2xl shadow p-12 text-center mt-8">
             <p className="text-4xl mb-4">🎉</p>
             <p className="text-xl font-bold text-gray-700">No captions left!</p>
-            <p className="text-gray-400 mt-2">You've rated all captions. Come back later for more!</p>
+            <p className="text-gray-400 mt-2">You've rated all captions. Upload an image to generate new ones!</p>
           </div>
         ) : (
-          <div className="bg-white rounded-2xl shadow overflow-hidden">
-            {/* Image */}
-            <img
-              src={post.url}
-              alt={post.image_description || 'Image'}
-              className="w-full object-cover"
-              style={{ maxHeight: '380px' }}
-            />
+          <div className="bg-white rounded-2xl shadow overflow-hidden flex flex-col" style={{ height: '580px' }}>
 
-            {/* Caption */}
-            <div className="px-6 pt-5 pb-2 text-center">
-              <p className="text-xl font-bold text-gray-900 leading-snug">
+            {/* Image — fixed height, always same size */}
+            <div className="w-full bg-gray-100 flex-shrink-0" style={{ height: '300px' }}>
+              <img
+                src={post.url}
+                alt={post.image_description || 'Image'}
+                className="w-full h-full object-cover"
+              />
+            </div>
+
+            {/* Caption — fixed height with scroll if too long */}
+            <div className="px-6 pt-4 pb-2 text-center flex-shrink-0" style={{ height: '100px', overflow: 'hidden' }}>
+              <p className="text-xl font-bold text-gray-900 leading-snug line-clamp-3">
                 {post.content}
               </p>
             </div>
 
-            {/* Vote Buttons */}
-            <div className="flex items-center justify-center gap-6 px-6 py-5">
+            {/* Vote Buttons — always pinned at same position */}
+            <div className="flex items-center justify-center gap-6 px-6 py-5 flex-shrink-0" style={{ height: '100px' }}>
               <button
                 onClick={() => handleVote(post.captionId, -1)}
                 disabled={!!votingId}
@@ -241,12 +374,13 @@ export default function ProtectedPage() {
               </button>
             </div>
 
-            {/* Captions left */}
-            <div className="text-center pb-6">
+            {/* Captions left — always at bottom */}
+            <div className="text-center pb-4 flex-shrink-0">
               <span className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
                 {captionsLeft} captions left
               </span>
             </div>
+
           </div>
         )}
       </div>
