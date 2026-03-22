@@ -233,7 +233,7 @@ export default function ProtectedPage() {
         } else {
           await supabase
             .from('caption_votes')
-            .update({ vote_value: voteValue, modified_datetime_utc: now })
+            .update({ vote_value: voteValue, modified_by_user_id: idToUse, modified_datetime_utc: now })
             .eq('id', existing.id)
         }
       } else {
@@ -241,6 +241,8 @@ export default function ProtectedPage() {
           caption_id: captionId,
           profile_id: idToUse,
           vote_value: voteValue,
+          created_by_user_id: idToUse,
+          modified_by_user_id: idToUse,
           created_datetime_utc: now,
           modified_datetime_utc: now,
         })
