@@ -60,13 +60,15 @@ export default function ProtectedPage() {
       }
 
       try {
-        const randomStart = Math.floor(Math.random() * 100)
+        const randomStart = 0
 
         const { data: captionsData, error: captionsError } = await supabase
           .from('captions')
           .select('id, image_id, content, images(id, url, image_description)')
           .eq('is_public', true)
           .not('image_id', 'is', null)
+          .not('content', 'is', null)
+          .neq('content', '')
           .range(randomStart, randomStart + 499)
 
         if (captionsError) throw new Error(captionsError.message)
@@ -179,9 +181,14 @@ export default function ProtectedPage() {
         body: JSON.stringify({ imageId }),
       })
       if (!captionRes.ok) throw new Error(`Caption generation failed: ${captionRes.statusText}`)
-      const captions = await captionRes.json()
+      const captionData = await captionRes.json()
 
-      const newPosts: Post[] = (captions || []).slice(0, 1).map((c: any) => ({
+      // Handle both array response and object with captions key
+      const captions = Array.isArray(captionData)
+        ? captionData
+        : captionData.captions || captionData.data || []
+
+      const newPosts: Post[] = (captions || []).map((c: any) => ({
         imageId: imageId,
         url: cdnUrl,
         image_description: null,
@@ -345,7 +352,7 @@ export default function ProtectedPage() {
             {/* Caption — fixed height with scroll if too long */}
             <div className="px-6 pt-4 pb-2 text-center flex-shrink-0" style={{ height: '100px', overflow: 'hidden' }}>
               <p className="text-xl font-bold text-gray-900 leading-snug line-clamp-3">
-                {post.content}
+                {post.content || '(no caption)'}
               </p>
             </div>
 
