@@ -71,3 +71,13 @@ body {
 .animate-float-delayed-2 {
   animation: float 3s ease-in-out 2s infinite;
 }
+
+/* Shimmer animation for loading states */
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.animate-shimmer {
+  animation: shimmer 1.5s ease-in-out infinite;
+}

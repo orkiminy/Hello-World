@@ -282,7 +282,12 @@ export default function ProtectedPage() {
     <div className="flex items-center justify-center h-screen bg-gradient-to-br from-orange-50 via-pink-50 to-purple-50">
       <div className="text-center animate-fade-in">
         <div className="text-4xl mb-3 animate-float">😄</div>
-        <p className="text-gray-400 font-medium">Loading captions...</p>
+        <p className="text-gray-500 font-medium">Loading captions...</p>
+        <div className="mt-4 flex justify-center gap-1.5">
+          <div className="w-2 h-2 rounded-full bg-orange-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+          <div className="w-2 h-2 rounded-full bg-pink-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+          <div className="w-2 h-2 rounded-full bg-purple-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+        </div>
       </div>
     </div>
   )
@@ -349,8 +354,10 @@ export default function ProtectedPage() {
       {/* Upload status banner */}
       {uploadStatus && (
         <div className="max-w-lg mx-auto mt-4 px-4 animate-fade-in">
-          <div className="bg-gradient-to-r from-orange-50 to-pink-50 border border-orange-200 text-orange-700 rounded-2xl px-4 py-3 text-sm text-center font-medium">
-            ⏳ {uploadStatus}
+          <div className="bg-gradient-to-r from-orange-50 to-pink-50 border border-orange-200 rounded-2xl px-4 py-3 text-sm text-center overflow-hidden relative">
+            <div className="absolute inset-0 bg-gradient-to-r from-orange-200/30 via-pink-200/30 to-orange-200/30 animate-shimmer" />
+            <span className="relative text-orange-700 font-medium">⏳ {uploadStatus}</span>
+            <p className="relative text-orange-400 text-xs mt-1">This may take a few seconds — hang tight!</p>
           </div>
         </div>
       )}
@@ -383,7 +390,7 @@ export default function ProtectedPage() {
       )}
 
       {/* Card */}
-      <div className="max-w-lg mx-auto pt-4 px-4 pb-8 relative">
+      <div className="max-w-lg mx-auto pt-3 px-4 pb-6 relative">
         {done ? (
           <div className="animate-slide-up rounded-3xl shadow-2xl text-center mt-8 overflow-hidden">
             <div className="h-1.5 bg-gradient-to-r from-orange-400 via-pink-500 to-purple-500" />
@@ -470,7 +477,7 @@ export default function ProtectedPage() {
                 className={`flex flex-col items-center justify-center w-28 h-20 rounded-2xl border-2 transition-all hover:scale-105 active:scale-95 cursor-pointer ${
                   post.userVote === 1
                     ? 'border-green-300 bg-green-50 text-green-600 shadow-md shadow-green-100'
-                    : 'border-orange-200 bg-gradient-to-br from-orange-50 to-yellow-50 text-orange-500 hover:border-orange-300 hover:shadow-md hover:shadow-orange-100 animate-pulse-glow'
+                    : 'border-gray-200 bg-white text-gray-400 hover:border-green-300 hover:text-green-500 hover:bg-green-50 hover:shadow-md hover:shadow-green-100'
                 }`}
               >
                 <span className="text-2xl">🤣</span>
