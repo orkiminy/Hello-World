@@ -24,6 +24,8 @@ export default function ProtectedPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [votingId, setVotingId] = useState<string | null>(null)
+  const [showOnboarding, setShowOnboarding] = useState(false)
+  const [cardKey, setCardKey] = useState(0)
 
   // Upload state
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -111,9 +113,14 @@ export default function ProtectedPage() {
           })
         }
 
-        // Shuffle randomly
         const shuffled = [...combined].sort(() => Math.random() - 0.5)
         setPosts(shuffled)
+
+        // Show onboarding if user hasn't seen it
+        const seen = localStorage.getItem('onboarding_seen')
+        if (!seen && shuffled.length > 0) {
+          setShowOnboarding(true)
+        }
       } catch (err: any) {
         setError(err.message || 'Error fetching data')
       } finally {
@@ -123,6 +130,11 @@ export default function ProtectedPage() {
 
     checkUserAndFetchData()
   }, [])
+
+  const dismissOnboarding = () => {
+    setShowOnboarding(false)
+    localStorage.setItem('onboarding_seen', 'true')
+  }
 
   const handleUpload = async (file: File) => {
     setUploading(true)
@@ -136,7 +148,6 @@ export default function ProtectedPage() {
 
       const BASE_URL = 'https://api.almostcrackd.ai'
 
-      // Step 1: Generate presigned URL
       const presignRes = await fetch(`${BASE_URL}/pipeline/generate-presigned-url`, {
         method: 'POST',
         headers: {
@@ -148,7 +159,6 @@ export default function ProtectedPage() {
       if (!presignRes.ok) throw new Error(`Presign failed: ${presignRes.statusText}`)
       const { presignedUrl, cdnUrl } = await presignRes.json()
 
-      // Step 2: Upload image bytes
       setUploadStatus('Uploading image...')
       const uploadRes = await fetch(presignedUrl, {
         method: 'PUT',
@@ -157,7 +167,6 @@ export default function ProtectedPage() {
       })
       if (!uploadRes.ok) throw new Error(`Upload failed: ${uploadRes.statusText}`)
 
-      // Step 3: Register image
       setUploadStatus('Registering image...')
       const registerRes = await fetch(`${BASE_URL}/pipeline/upload-image-from-url`, {
         method: 'POST',
@@ -170,7 +179,6 @@ export default function ProtectedPage() {
       if (!registerRes.ok) throw new Error(`Register failed: ${registerRes.statusText}`)
       const { imageId } = await registerRes.json()
 
-      // Step 4: Generate captions
       setUploadStatus('Generating captions... (this may take a moment)')
       const captionRes = await fetch(`${BASE_URL}/pipeline/generate-captions`, {
         method: 'POST',
@@ -183,7 +191,6 @@ export default function ProtectedPage() {
       if (!captionRes.ok) throw new Error(`Caption generation failed: ${captionRes.statusText}`)
       const captionData = await captionRes.json()
 
-      // Handle both array response and object with captions key
       const captions = Array.isArray(captionData)
         ? captionData
         : captionData.captions || captionData.data || []
@@ -203,6 +210,7 @@ export default function ProtectedPage() {
 
       setPosts((prev) => [...newPosts, ...prev.slice(current)])
       setCurrent(0)
+      setCardKey((k) => k + 1)
       setUploadStatus(null)
     } catch (err: any) {
       console.error('Upload error:', err)
@@ -256,6 +264,7 @@ export default function ProtectedPage() {
       }
 
       setCurrent((prev) => prev + 1)
+      setCardKey((k) => k + 1)
 
     } catch (err) {
       console.error('Vote error:', err)
@@ -270,50 +279,72 @@ export default function ProtectedPage() {
   }
 
   if (loading) return (
-    <div className="flex items-center justify-center h-screen bg-gray-50">
-      <p className="text-gray-500">Loading...</p>
+    <div className="flex items-center justify-center h-screen bg-gradient-to-br from-orange-50 via-pink-50 to-purple-50">
+      <div className="text-center animate-fade-in">
+        <div className="text-4xl mb-3 animate-float">😄</div>
+        <p className="text-gray-400 font-medium">Loading captions...</p>
+      </div>
     </div>
   )
-  if (error) return <div className="p-8 text-red-500">Error: {error}</div>
+  if (error) return (
+    <div className="flex items-center justify-center h-screen bg-gradient-to-br from-orange-50 via-pink-50 to-purple-50">
+      <div className="bg-white rounded-2xl shadow-lg p-8 max-w-sm text-center">
+        <div className="text-3xl mb-3">😕</div>
+        <p className="text-red-500 font-medium">Something went wrong</p>
+        <p className="text-gray-400 text-sm mt-2">{error}</p>
+      </div>
+    </div>
+  )
 
   const post = posts[current]
   const captionsLeft = posts.length - current - 1
   const done = current >= posts.length
+  const progress = posts.length > 0 ? ((current) / posts.length) * 100 : 0
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-white border-b px-6 py-4 flex justify-between items-center">
-        <h1 className="text-xl font-bold">Image Gallery</h1>
-        <div className="flex items-center gap-4">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,image/heic"
-            className="hidden"
-            onChange={handleFileChange}
-          />
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-pink-50 to-purple-50">
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,image/heic"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+
+      {/* Header — clean: brand + user info only */}
+      <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-200/50 px-6 py-3 flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          <span className="text-2xl">😄</span>
+          <h1 className="text-xl font-extrabold bg-gradient-to-r from-orange-500 to-pink-500 bg-clip-text text-transparent">
+            Almost Crack'd
+          </h1>
           <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="bg-orange-400 text-white px-4 py-2 rounded hover:bg-orange-500 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={() => setShowOnboarding(true)}
+            className="w-6 h-6 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-400 hover:text-gray-600 text-xs font-bold flex items-center justify-center transition-colors"
+            title="How does this work?"
           >
-            {uploading ? '⏳ Uploading...' : '📸 Upload Image'}
+            ?
           </button>
-          <p className="text-sm text-gray-600">{user?.email}</p>
-          <button
-            onClick={handleSignOut}
-            className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 text-sm"
-          >
-            Sign Out
-          </button>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-gray-500">
+            Welcome back, <strong className="text-gray-700">{(user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email || '')?.split(' ')[0]}</strong>
+            <span className="mx-1.5 text-gray-300">·</span>
+            <button
+              onClick={handleSignOut}
+              className="text-gray-400 hover:text-red-500 transition-colors font-medium"
+            >
+              Sign out
+            </button>
+          </span>
         </div>
       </div>
 
       {/* Upload status banner */}
       {uploadStatus && (
-        <div className="max-w-lg mx-auto mt-4 px-4">
-          <div className="bg-orange-50 border border-orange-200 text-orange-700 rounded-xl px-4 py-3 text-sm text-center">
+        <div className="max-w-lg mx-auto mt-4 px-4 animate-fade-in">
+          <div className="bg-gradient-to-r from-orange-50 to-pink-50 border border-orange-200 text-orange-700 rounded-2xl px-4 py-3 text-sm text-center font-medium">
             ⏳ {uploadStatus}
           </div>
         </div>
@@ -321,27 +352,56 @@ export default function ProtectedPage() {
 
       {/* Upload error banner */}
       {uploadError && (
-        <div className="max-w-lg mx-auto mt-4 px-4">
-          <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl px-4 py-3 text-sm text-center flex justify-between items-center">
+        <div className="max-w-lg mx-auto mt-4 px-4 animate-fade-in">
+          <div className="bg-red-50 border border-red-200 text-red-600 rounded-2xl px-4 py-3 text-sm text-center flex justify-between items-center">
             <span>❌ {uploadError}</span>
-            <button onClick={() => setUploadError(null)} className="ml-4 text-red-400 hover:text-red-600">✕</button>
+            <button onClick={() => setUploadError(null)} className="ml-4 text-red-400 hover:text-red-600 transition-colors">✕</button>
+          </div>
+        </div>
+      )}
+
+      {/* Progress bar */}
+      {!done && posts.length > 0 && (
+        <div className="max-w-lg mx-auto mt-4 px-4">
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-orange-400 to-pink-500 rounded-full transition-all duration-500 ease-out"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <span className="text-xs font-semibold text-gray-400 whitespace-nowrap">
+              {current}/{posts.length}
+            </span>
           </div>
         </div>
       )}
 
       {/* Card */}
-      <div className="max-w-lg mx-auto pt-6 px-4">
+      <div className="max-w-lg mx-auto pt-4 px-4 pb-8 relative">
         {done ? (
-          <div className="bg-white rounded-2xl shadow p-12 text-center mt-8">
-            <p className="text-4xl mb-4">🎉</p>
-            <p className="text-xl font-bold text-gray-700">No captions left!</p>
-            <p className="text-gray-400 mt-2">You've rated all captions. Upload an image to generate new ones!</p>
+          <div className="animate-slide-up bg-white rounded-3xl shadow-xl p-12 text-center mt-8 border border-gray-100">
+            <div className="text-6xl mb-4">🎉</div>
+            <p className="text-2xl font-bold text-gray-800">All done!</p>
+            <p className="text-gray-400 mt-3 leading-relaxed">
+              You've rated all the captions. Want more?
+            </p>
+            <p className="text-gray-500 mt-2 text-sm leading-relaxed">
+              Upload any image and our AI will generate funny captions for it. Then you can swipe through and rate each one!
+            </p>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="mt-6 bg-gradient-to-r from-orange-400 to-pink-500 text-white font-semibold px-6 py-3 rounded-2xl hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all"
+            >
+              📸 Upload an Image
+            </button>
           </div>
         ) : (
-          <div className="bg-white rounded-2xl shadow overflow-hidden flex flex-col" style={{ height: '580px' }}>
+          <div key={cardKey} className="animate-slide-up bg-white rounded-3xl shadow-xl overflow-hidden flex flex-col border border-gray-100" style={{ height: '580px' }}>
 
-            {/* Image — fixed height, always same size */}
-            <div className="w-full bg-gray-100 flex-shrink-0" style={{ height: '300px' }}>
+            {/* Image */}
+            <div className="w-full bg-gray-100 flex-shrink-0 relative" style={{ height: '300px' }}>
               <img
                 src={post.url}
                 alt={post.image_description || 'Image'}
@@ -349,47 +409,98 @@ export default function ProtectedPage() {
               />
             </div>
 
-            {/* Caption — fixed height with scroll if too long */}
-            <div className="px-6 pt-4 pb-2 text-center flex-shrink-0" style={{ height: '100px', overflow: 'hidden' }}>
-              <p className="text-xl font-bold text-gray-900 leading-snug line-clamp-3">
-                {post.content || '(no caption)'}
+            {/* Caption */}
+            <div className="px-6 pt-5 pb-2 text-center flex-shrink-0 flex items-center justify-center" style={{ height: '110px', overflow: 'hidden' }}>
+              <p className="text-xl font-bold text-gray-800 leading-snug line-clamp-3 italic">
+                "{post.content || '(no caption)'}"
               </p>
             </div>
 
-            {/* Vote Buttons — always pinned at same position */}
-            <div className="flex items-center justify-center gap-6 px-6 py-5 flex-shrink-0" style={{ height: '100px' }}>
+            {/* Vote Buttons with labels */}
+            <div className="flex items-center justify-center gap-8 px-6 py-4 flex-shrink-0" style={{ height: '110px' }}>
               <button
                 onClick={() => handleVote(post.captionId, -1)}
                 disabled={!!votingId}
-                className={`flex items-center justify-center w-36 h-14 rounded-full border-2 text-2xl transition-all ${
+                className={`flex flex-col items-center justify-center w-32 h-20 rounded-2xl border-2 transition-all hover:scale-105 active:scale-95 ${
                   post.userVote === -1
-                    ? 'border-orange-400 bg-orange-50 text-orange-500'
-                    : 'border-gray-300 bg-white text-gray-500 hover:border-orange-300 hover:text-orange-400'
+                    ? 'border-red-300 bg-red-50 text-red-500'
+                    : 'border-gray-200 bg-gray-50 text-gray-400 hover:border-red-200 hover:text-red-400 hover:bg-red-50'
                 }`}
               >
-                👎
+                <span className="text-2xl">👎</span>
+                <span className="text-xs font-semibold mt-1">Not Funny</span>
               </button>
 
               <button
                 onClick={() => handleVote(post.captionId, 1)}
                 disabled={!!votingId}
-                className={`flex items-center justify-center w-36 h-14 rounded-full text-2xl transition-all ${
+                className={`flex flex-col items-center justify-center w-32 h-20 rounded-2xl border-2 transition-all hover:scale-105 active:scale-95 ${
                   post.userVote === 1
-                    ? 'bg-orange-300 text-white'
-                    : 'bg-orange-400 text-white hover:bg-orange-500'
+                    ? 'border-green-300 bg-green-50 text-green-600'
+                    : 'border-green-200 bg-green-50 text-green-500 hover:border-green-300 hover:bg-green-100 animate-pulse-glow'
                 }`}
               >
-                👍
+                <span className="text-2xl">👍</span>
+                <span className="text-xs font-semibold mt-1">Funny!</span>
               </button>
             </div>
 
-            {/* Captions left — always at bottom */}
+            {/* Captions left */}
             <div className="text-center pb-4 flex-shrink-0">
-              <span className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
-                {captionsLeft} captions left
+              <span className="text-xs font-medium text-gray-400">
+                {captionsLeft} caption{captionsLeft !== 1 ? 's' : ''} remaining
               </span>
             </div>
 
+          </div>
+        )}
+
+        {/* Upload section — below the card */}
+        <div className="mt-6 bg-white/60 backdrop-blur-sm rounded-2xl border border-white/50 p-5 text-center">
+          <p className="text-sm text-gray-500 mb-3">
+            📸 <strong>Want to add your own?</strong> Upload an image and our AI will generate funny captions for you to rate.
+          </p>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="bg-gradient-to-r from-orange-400 to-pink-500 text-white px-5 py-2.5 rounded-xl hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {uploading ? '⏳ Uploading...' : '📸 Upload Image'}
+          </button>
+        </div>
+
+        {/* Onboarding overlay */}
+        {showOnboarding && !done && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center px-4" style={{ top: '0' }}>
+            <div className="absolute inset-0 bg-black/40 rounded-3xl" onClick={dismissOnboarding} />
+            <div className="relative bg-white rounded-3xl shadow-2xl p-8 max-w-sm w-full animate-slide-up">
+              <div className="text-center">
+                <div className="text-4xl mb-3">👋</div>
+                <h3 className="text-xl font-bold text-gray-800 mb-3">Welcome!</h3>
+                <p className="text-gray-500 leading-relaxed mb-2">
+                  Each card shows an image with an <strong>AI-generated caption</strong>.
+                </p>
+                <div className="flex items-center justify-center gap-6 my-4">
+                  <div className="text-center">
+                    <div className="text-2xl">👎</div>
+                    <p className="text-xs text-gray-400 mt-1">Not funny</p>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl">👍</div>
+                    <p className="text-xs text-gray-400 mt-1">Funny!</p>
+                  </div>
+                </div>
+                <p className="text-gray-500 text-sm mb-5">
+                  Vote to see the next caption. You can also upload your own images!
+                </p>
+                <button
+                  onClick={dismissOnboarding}
+                  className="w-full bg-gradient-to-r from-orange-400 to-pink-500 text-white font-semibold py-3 rounded-2xl hover:shadow-lg transition-all"
+                >
+                  Got it, let's go!
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
