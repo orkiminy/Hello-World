@@ -11,7 +11,7 @@ type Post = {
   content: string
   upvotes: number
   downvotes: number
-  userVote: 1 | -1 | null
+  userVote: 1 | 0 | -1 | null
 }
 
 export default function ProtectedPage() {
@@ -227,7 +227,7 @@ export default function ProtectedPage() {
     if (file) handleUpload(file)
   }
 
-  const handleVote = async (captionId: string, voteValue: 1 | -1) => {
+  const handleVote = async (captionId: string, voteValue: 1 | 0 | -1) => {
     if (!user) return
     setVotingId(captionId)
 
@@ -302,7 +302,12 @@ export default function ProtectedPage() {
   const progress = posts.length > 0 ? ((current) / posts.length) * 100 : 0
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-pink-50 to-purple-50">
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-pink-50 to-purple-50 relative overflow-hidden">
+      {/* Background decorations */}
+      <div className="absolute top-20 -left-20 w-72 h-72 bg-orange-200/20 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-60 -right-20 w-80 h-80 bg-pink-200/20 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-20 left-1/3 w-64 h-64 bg-purple-200/15 rounded-full blur-3xl pointer-events-none" />
+
       {/* Hidden file input */}
       <input
         ref={fileInputRef}
@@ -312,8 +317,8 @@ export default function ProtectedPage() {
         onChange={handleFileChange}
       />
 
-      {/* Header — clean: brand + user info only */}
-      <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-200/50 px-6 py-3 flex justify-between items-center">
+      {/* Header */}
+      <div className="sticky top-0 z-10 bg-white/70 backdrop-blur-lg border-b border-gray-200/30 px-6 py-3 flex justify-between items-center shadow-sm">
         <div className="flex items-center gap-2">
           <span className="text-2xl">😄</span>
           <h1 className="text-xl font-extrabold bg-gradient-to-r from-orange-500 to-pink-500 bg-clip-text text-transparent">
@@ -380,25 +385,36 @@ export default function ProtectedPage() {
       {/* Card */}
       <div className="max-w-lg mx-auto pt-4 px-4 pb-8 relative">
         {done ? (
-          <div className="animate-slide-up bg-white rounded-3xl shadow-xl p-12 text-center mt-8 border border-gray-100">
-            <div className="text-6xl mb-4">🎉</div>
-            <p className="text-2xl font-bold text-gray-800">All done!</p>
-            <p className="text-gray-400 mt-3 leading-relaxed">
-              You've rated all the captions. Want more?
-            </p>
-            <p className="text-gray-500 mt-2 text-sm leading-relaxed">
-              Upload any image and our AI will generate funny captions for it. Then you can swipe through and rate each one!
-            </p>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className="mt-6 bg-gradient-to-r from-orange-400 to-pink-500 text-white font-semibold px-6 py-3 rounded-2xl hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all"
-            >
-              📸 Upload an Image
-            </button>
+          <div className="animate-slide-up rounded-3xl shadow-2xl text-center mt-8 overflow-hidden">
+            <div className="h-1.5 bg-gradient-to-r from-orange-400 via-pink-500 to-purple-500" />
+            <div className="bg-white p-12">
+              <div className="text-6xl mb-2">🎉</div>
+              <div className="flex justify-center gap-2 text-2xl mb-4">
+                <span className="animate-float">🥳</span>
+                <span className="animate-float-delayed">🎊</span>
+                <span className="animate-float-delayed-2">✨</span>
+              </div>
+              <p className="text-2xl font-extrabold bg-gradient-to-r from-orange-500 to-pink-500 bg-clip-text text-transparent">All done!</p>
+              <p className="text-gray-400 mt-3 leading-relaxed">
+                You've rated all the captions. Want more?
+              </p>
+              <p className="text-gray-500 mt-2 text-sm leading-relaxed">
+                Upload any image and our AI will generate funny captions for it. Then you can swipe through and rate each one!
+              </p>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="mt-6 bg-gradient-to-r from-orange-400 to-pink-500 text-white font-semibold px-6 py-3 rounded-2xl hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all"
+              >
+                📸 Upload an Image
+              </button>
+            </div>
           </div>
         ) : (
-          <div key={cardKey} className="animate-slide-up bg-white rounded-3xl shadow-xl overflow-hidden flex flex-col border border-gray-100" style={{ height: '580px' }}>
+          <div key={cardKey} className="animate-slide-up rounded-3xl overflow-hidden flex flex-col shadow-2xl" style={{ height: '600px' }}>
+
+            {/* Gradient accent bar at top */}
+            <div className="h-1.5 bg-gradient-to-r from-orange-400 via-pink-500 to-purple-500 flex-shrink-0" />
 
             {/* Image */}
             <div className="w-full bg-gray-100 flex-shrink-0 relative" style={{ height: '300px' }}>
@@ -407,46 +423,63 @@ export default function ProtectedPage() {
                 alt={post.image_description || 'Image'}
                 className="w-full h-full object-cover"
               />
+              {/* Image overlay gradient for smooth transition to caption */}
+              <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-white to-transparent" />
             </div>
 
-            {/* Caption */}
-            <div className="px-6 pt-5 pb-2 text-center flex-shrink-0 flex items-center justify-center" style={{ height: '110px', overflow: 'hidden' }}>
-              <p className="text-xl font-bold text-gray-800 leading-snug line-clamp-3 italic">
-                "{post.content || '(no caption)'}"
-              </p>
+            {/* Caption — speech bubble style */}
+            <div className="bg-white px-6 pt-3 pb-2 text-center flex-shrink-0 flex items-center justify-center" style={{ height: '110px', overflow: 'hidden' }}>
+              <div className="bg-gradient-to-br from-orange-50 to-pink-50 rounded-2xl px-5 py-3 border border-orange-100 max-w-full">
+                <p className="text-lg font-bold text-gray-800 leading-snug line-clamp-3">
+                  &ldquo;{post.content || '(no caption)'}&rdquo;
+                </p>
+              </div>
             </div>
 
-            {/* Vote Buttons with labels */}
-            <div className="flex items-center justify-center gap-8 px-6 py-4 flex-shrink-0" style={{ height: '110px' }}>
+            {/* Vote Buttons */}
+            <div className="bg-white flex items-center justify-center gap-3 px-4 py-3 flex-shrink-0" style={{ height: '120px' }}>
               <button
                 onClick={() => handleVote(post.captionId, -1)}
                 disabled={!!votingId}
-                className={`flex flex-col items-center justify-center w-32 h-20 rounded-2xl border-2 transition-all hover:scale-105 active:scale-95 ${
+                className={`flex flex-col items-center justify-center w-28 h-20 rounded-2xl border-2 transition-all hover:scale-105 active:scale-95 cursor-pointer ${
                   post.userVote === -1
-                    ? 'border-red-300 bg-red-50 text-red-500'
-                    : 'border-gray-200 bg-gray-50 text-gray-400 hover:border-red-200 hover:text-red-400 hover:bg-red-50'
+                    ? 'border-red-300 bg-red-50 text-red-500 shadow-md shadow-red-100'
+                    : 'border-gray-200 bg-white text-gray-400 hover:border-red-300 hover:text-red-400 hover:bg-red-50 hover:shadow-md hover:shadow-red-100'
                 }`}
               >
-                <span className="text-2xl">👎</span>
-                <span className="text-xs font-semibold mt-1">Not Funny</span>
+                <span className="text-2xl">😑</span>
+                <span className="text-[10px] font-bold mt-1 uppercase tracking-wide">Not Funny</span>
+              </button>
+
+              <button
+                onClick={() => handleVote(post.captionId, 0)}
+                disabled={!!votingId}
+                className={`flex flex-col items-center justify-center w-28 h-20 rounded-2xl border-2 transition-all hover:scale-105 active:scale-95 cursor-pointer ${
+                  post.userVote === 0
+                    ? 'border-yellow-300 bg-yellow-50 text-yellow-600 shadow-md shadow-yellow-100'
+                    : 'border-gray-200 bg-white text-gray-400 hover:border-yellow-300 hover:text-yellow-500 hover:bg-yellow-50 hover:shadow-md hover:shadow-yellow-100'
+                }`}
+              >
+                <span className="text-2xl">😏</span>
+                <span className="text-[10px] font-bold mt-1 uppercase tracking-wide">Meh</span>
               </button>
 
               <button
                 onClick={() => handleVote(post.captionId, 1)}
                 disabled={!!votingId}
-                className={`flex flex-col items-center justify-center w-32 h-20 rounded-2xl border-2 transition-all hover:scale-105 active:scale-95 ${
+                className={`flex flex-col items-center justify-center w-28 h-20 rounded-2xl border-2 transition-all hover:scale-105 active:scale-95 cursor-pointer ${
                   post.userVote === 1
-                    ? 'border-green-300 bg-green-50 text-green-600'
-                    : 'border-green-200 bg-green-50 text-green-500 hover:border-green-300 hover:bg-green-100 animate-pulse-glow'
+                    ? 'border-green-300 bg-green-50 text-green-600 shadow-md shadow-green-100'
+                    : 'border-orange-200 bg-gradient-to-br from-orange-50 to-yellow-50 text-orange-500 hover:border-orange-300 hover:shadow-md hover:shadow-orange-100 animate-pulse-glow'
                 }`}
               >
-                <span className="text-2xl">👍</span>
-                <span className="text-xs font-semibold mt-1">Funny!</span>
+                <span className="text-2xl">🤣</span>
+                <span className="text-[10px] font-bold mt-1 uppercase tracking-wide">Funny!</span>
               </button>
             </div>
 
             {/* Captions left */}
-            <div className="text-center pb-4 flex-shrink-0">
+            <div className="bg-white text-center pb-4 flex-shrink-0 rounded-b-3xl">
               <span className="text-xs font-medium text-gray-400">
                 {captionsLeft} caption{captionsLeft !== 1 ? 's' : ''} remaining
               </span>
@@ -456,16 +489,16 @@ export default function ProtectedPage() {
         )}
 
         {/* Upload section — below the card */}
-        <div className="mt-6 bg-white/60 backdrop-blur-sm rounded-2xl border border-white/50 p-5 text-center">
-          <p className="text-sm text-gray-500 mb-3">
-            📸 <strong>Want to add your own?</strong> Upload an image and our AI will generate funny captions for you to rate.
-          </p>
+        <div className="mt-6 bg-white/70 backdrop-blur-sm rounded-2xl border border-white/40 p-6 text-center shadow-lg">
+          <div className="text-3xl mb-2">📸</div>
+          <p className="text-sm font-semibold text-gray-700 mb-1">Want to add your own?</p>
+          <p className="text-xs text-gray-400 mb-4">Upload an image and our AI will generate funny captions for you to rate.</p>
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            className="bg-gradient-to-r from-orange-400 to-pink-500 text-white px-5 py-2.5 rounded-xl hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            className="bg-gradient-to-r from-orange-400 via-pink-500 to-purple-500 text-white px-6 py-2.5 rounded-xl hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {uploading ? '⏳ Uploading...' : '📸 Upload Image'}
+            {uploading ? '⏳ Uploading...' : 'Choose an Image'}
           </button>
         </div>
 
@@ -480,13 +513,17 @@ export default function ProtectedPage() {
                 <p className="text-gray-500 leading-relaxed mb-2">
                   Each card shows an image with an <strong>AI-generated caption</strong>.
                 </p>
-                <div className="flex items-center justify-center gap-6 my-4">
+                <div className="flex items-center justify-center gap-5 my-4">
                   <div className="text-center">
-                    <div className="text-2xl">👎</div>
+                    <div className="text-2xl">😑</div>
                     <p className="text-xs text-gray-400 mt-1">Not funny</p>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl">👍</div>
+                    <div className="text-2xl">😏</div>
+                    <p className="text-xs text-gray-400 mt-1">Meh</p>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl">🤣</div>
                     <p className="text-xs text-gray-400 mt-1">Funny!</p>
                   </div>
                 </div>
